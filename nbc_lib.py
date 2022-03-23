@@ -8,14 +8,15 @@ class Block:
         self.timestamp = timestamp
         self.transactions = transactions
         self.nonce = nonce
-        self.current_hash = SHA256.new(bytearray(str([self.timestamp, self.transactions, self.nonce]), 'utf-8'))
+        self.current_hash = SHA256.new(
+            bytearray(str([self.timestamp, self.transactions, self.nonce]), 'utf-8'))
         self.previous_hash = previous_hash
 
     @classmethod
     def from_json(cls, json_str):
         x = json.loads(json_str)
         return cls(x.index, x.timestamp, x.transactions, x.nonce, x.previous_hash)
-    
+
     @classmethod
     def from_dict(cls, x):
         return cls(x['index'], x['timestamp'], x['transactions'], x['nonce'], x['previous_hash'])
@@ -30,7 +31,7 @@ class Block:
                 'nonce': self.nonce,
                 'current_hast': self.current_hash,
                 'previous_hast': self.previous_hash}
-    
+
     def to_json(self):
         return json.dumps(self.to_dict())
 
@@ -40,7 +41,8 @@ class Transaction:
         self.sender_address = sender_address
         self.receiver_address = receiver_address
         self.amount = amount
-        self.t_id = SHA256.new(bytearray(str([self.sender_address, self.receiver_address, self.amount]), 'utf-8'))
+        self.t_id = SHA256.new(bytearray(
+            str([self.sender_address, self.receiver_address, self.amount]), 'utf-8'))
         self.t_inputs = t_inputs
         self.t_outputs = t_outputs
         self.signature = signature
@@ -65,6 +67,6 @@ class Transaction:
                 'transaction_inputs': self.t_inputs,
                 'transaction_outputs': self.t_outputs,
                 'signature': self.signature}
-    
+
     def to_json(self):
         return json.dumps(self.to_dict())
