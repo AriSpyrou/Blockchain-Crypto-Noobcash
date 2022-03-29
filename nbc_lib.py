@@ -15,7 +15,8 @@ class Block:
     @classmethod
     def from_json(cls, json_str):
         x = json.loads(json_str)
-        return cls(x.index, x.timestamp, x.transactions, x.nonce, x.previous_hash)
+        return cls(x['index'], x['timestamp'], x['transactions'], x['nonce'], x['previous_hash'])
+        #return cls(x.index, x.timestamp, x.transactions, x.nonce, x.previous_hash)
 
     @classmethod
     def from_dict(cls, x):
@@ -37,7 +38,7 @@ class Block:
 
 
 class Transaction:
-    def __init__(self, sender_address, receiver_address, amount, t_inputs, t_outputs, signature):
+    def __init__(self, sender_address, receiver_address, amount, t_inputs=None, t_outputs=None, signature=None):
         self.sender_address = sender_address
         self.receiver_address = receiver_address
         self.amount = amount
@@ -50,7 +51,8 @@ class Transaction:
     @classmethod
     def from_json(cls, json_str):
         x = json.loads(json_str)
-        return cls(x.sender_address, x.receiver_address, x.amount, x.t_inputs, x.t_outputs, x.signature)
+        return cls(x['sender_address'], x['receiver_address'], x['amount'], x['t_inputs'], x['t_outputs'], x['signature'])
+        #return cls(x.sender_address, x.receiver_address, x.amount, x.t_inputs, x.t_outputs, x.signature)
 
     @classmethod
     def from_dict(cls, x):

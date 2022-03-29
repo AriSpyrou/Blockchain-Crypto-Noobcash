@@ -6,31 +6,65 @@ import rsa
 from nbc_lib import Block, Transaction
 import socket
 from threading import Timer
+from Crypto.Hash import SHA256
 
 app = Flask(__name__)
-# Finding our local IP address by pinging the 0th node/gateway on port 80
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.connect(("192.168.0.1", 80))
-my_ip = s.getsockname()[0]
-my_port = 5000
-
-# Hyperparameters
-if my_ip == "192.168.0.1":  
-    BOOTSTRAP = 1  # hyperparameter to determine the bootstrap node
-else:
-    BOOTSTRAP = 0
-N = 2  # hyperparameter / number of total nodes connected to nbc network
-
 
 def generate_wallet():
     # poolsize is related to the # of CPU threads available
     pubkey, privkey = rsa.newkeys(1024, poolsize=2)
     return pubkey, privkey
 
+
+def create_transaction(receiver_address, amount):
+    pos = int(my_id['id'])
+    unspent = utxo[pos]
+    enough = False
+    tmp = 0
+    for i, un in enumerate(unspent):
+        tmp += un['amount']
+        if tmp >= amount:
+            enough = True
+            t_inputs = unspent[:i]
+            diff = tmp - amount
+            break
+    if enough:
+        trans = Transaction(sender_address=pubkey, receiver_address=receiver_address, amount=amount, t_inputs=t_inputs)
+        t_out1 = {'id': SHA256.new(bytearray(str([time(), trans.t_id, receiver_address, amount]), 'utf-8')), 't_id': trans.t_id, 'recipient': receiver_address, 'amount': amount}
+        t_out2 = {'id': SHA256.new(bytearray(str([time(), trans.t_id, pubkey, diff]), 'utf-8')), 't_id': trans.t_id, 'recipient': pubkey, 'amount': diff}
+        trans.t_outputs = [t_out1, t_out2]
+        del unspent[:i]
+        unspent.append(t_out2)
+        for node in nodes:
+            if receiver_address.e == node['e'] and receiver_address.n == node['n']:
+                pos = int(node['id'])
+        unspent = utxo[pos]
+        unspent.append(t_out1)
+        trans.signature = sign_transaction(trans, privkey)
+        return trans
+    else:
+        print('Not enough money in wallet!')
+
+
 def sign_transaction(trans, privkey):
     # hash and sign message in one operation
-    signature = rsa.sign(trans, privkey, 'SHA-256')
+    signature = rsa.sign(str([trans.sender_address, trans.receiver_address, trans.amount]), privkey, 'SHA-256')
     return signature
+
+
+def broadcast_transaction(trans):
+    for node in nodes:
+        if node['id'] == my_id['id']:
+            continue
+        while True:
+            #TODO Make it so it retries 5-10-15 times
+            req = requests.post(f"http://{node['ip']}:{node['port']}/get-transaction", json=trans.to_json())
+            if req.ok:
+                break
+            else:
+                print('Transaction failed to be sent retrying...')
+                sleep(5)
+
 
 def verify_signature(trans, pubkey, signature):
     """
@@ -46,50 +80,60 @@ def verify_signature(trans, pubkey, signature):
     True if valid, False if invalid
     """
     try:
-        rsa.verify(trans, signature, pubkey)
+        rsa.verify(str([trans.sender_address, trans.receiver_address, trans.amount]), signature, pubkey)
         return True
     except rsa.VerificationError as e:
-        print(e)
         return False
 
+
 def validate_transaction(trans, pubkey, signature):
-    if not verify_signature(trans, pubkey, signature):
-        print("Transaction Verification Failed!")
-    # TODO: check input/output for balance issues
+    # If signature checks out go ahead
+    if verify_signature(trans, pubkey, signature):
+        # Look for the node that corresponds to the public key
+        for node in nodes:
+            if pubkey.e == node['e'] and pubkey.n == node['n']:
+                pos = int(node['id'])
+        # Link the two lists
+        unspent = utxo[pos]
+        ok_flag = True
+        tmp = []
+        # List with all IDs from unspent
+        unspent_ids = [item['id'] for item in unspent]
+        # For every input we want to valid
+        for i, inp in enumerate(trans.t_inputs):
+            input_id = inp['id']
+            # Check to see if it is in unspent_ids
+            if input_id not in unspent_ids:
+                # If even 1 is invalid then stop looping
+                ok_flag = False
+                break
+            else:
+                # If it is found then add it to a temp list
+                tmp.append(unspent_ids.index(input_id))
+        # If all inputs are found and everything is a-ok
+        if ok_flag:
+            # Loop through the temp list we made earlier with the positions of UTXOs that need to be removed
+            for i in tmp:
+                del unspent[i]
+            # Add the output of the transaction to the spender ie the change from the removed UTXOs
+            unspent.append(trans.t_outputs[1])
+            # Find the receiver in nodes and
+            for node in nodes:
+                if trans.receiver_address.e == node['e'] and trans.receiver_address.n == node['n']:
+                    pos = int(node['id'])
+            # Add the output of the transaction to the receiver ie the money transfered
+            unspent = utxo[pos]
+            unspent.append(trans.t_outputs[0])
 
-def broadcast_transaction(trans):
-    # TODO: nodes = list of all nodes
-    success = []
-    for node in nodes:
-        # TODO: change the format if we are not going to use json
-        req = requests.post(node, data=json.dumps(trans))
-        if req.ok:
-            success.append(node)
-        else:
-            # we can use req.raise_for_status() but it'll stop the execution
-            print("Broadcasting failed.")
-            for s in success:
-                #TODO: handle the exception properly - broadcast cancellection msg
-                req = requests.post(node+"/undo_trans")
+def send_nodes_to_all(nodes):
+    while True:
+        if len(nodes) == N:
+            for node in nodes[1:]:
+                print(f"Sent node list to {node['id']}")
+                requests.post(f"http://{node['ip']}:{node['port']}/get-nodes", json=json.dumps(nodes))
             break
-
-
-# Generating RSA key pair
-pubkey, privkey = generate_wallet()
-# Check if there is a node running on port 5000
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    if s.connect_ex((my_ip, 5000)) == 0:
-        my_port = 5001
-
-my_id = {'id': '0', 'ip': my_ip, 'port': my_port, 'e': f'{pubkey.e}', 'n': f'{pubkey.n}'}
-
-# TODO add newcomer to nodes list as dict or not?
-nodes = []
-# Create genesis block and genesis transaction, only for node 0
-if BOOTSTRAP:
-    nodes = [my_id]
-    genesis_transaction = Transaction(0, pubkey, 100 * N, None, [], None)
-    genesis_block = Block(0, time(), (genesis_transaction), 0, -1)
+        else:
+            sleep(5)
 
 
 @app.route("/join-network", methods=['POST'])
@@ -108,20 +152,58 @@ def join_network():
         return json.dumps({'cni': f'{c_id}'})
 
 
-def send_nodes_to_all(nodes):
-    while True:
-        if len(nodes) == N:
-            for node in nodes[1:]:
-                requests.post(f"http://{node['ip']}:{node['port']}/get-nodes", json=json.dumps(nodes))
-            break
-        else:
-            sleep(5)
-
 @app.route("/get-nodes", methods=['POST'])
 def get_nodes():
     if request.method == 'POST':
         nodes = json.loads(request.json)
         return '1'
+
+
+@app.route("/get-transaction", methods=['POST'])
+def get_transaction():
+    if request.method == 'POST':
+        trans = Transaction.from_json(json.loads(request.json))
+        if validate_transaction(trans):
+            print("OK")
+        else:
+            print("Not OK")
+
+
+# Finding our local IP address by pinging the 0th node/gateway on port 80
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(("192.168.0.1", 80))
+my_ip = s.getsockname()[0]
+my_port = 5000
+
+# Hyperparameters
+if my_ip == "192.168.0.1":  
+    BOOTSTRAP = 1  # hyperparameter to determine the bootstrap node
+else:
+    BOOTSTRAP = 0
+N = 2  # hyperparameter / number of total nodes connected to nbc network
+C = 1 # hyperparameter / capacity
+D = 4 # hyperparameter / difficulty
+
+# Generating RSA key pair
+pubkey, privkey = generate_wallet()
+# Check if there is a node running on port 5000
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    if s.connect_ex((my_ip, 5000)) == 0:
+        my_port = 5001
+
+my_id = {'id': '0', 'ip': my_ip, 'port': my_port, 'e': f'{pubkey.e}', 'n': f'{pubkey.n}'}
+
+utxo = [[] for _ in range(N)]
+nodes = []
+
+# Create genesis block and genesis transaction, only for node 0
+if BOOTSTRAP:
+    nodes = [my_id]
+    genesis_transaction = Transaction(0, pubkey, 100 * N, None, [], None)
+    trans = genesis_transaction
+    genesis_transaction.t_outputs = [{'id': SHA256.new(bytearray(str([time(), trans.t_id, pubkey, 100 * N]), 'utf-8')), 't_id': trans.t_id, 'recipient': pubkey, 'amount': 100 * N}, {}]
+    genesis_block = Block(0, time(), (genesis_transaction), 0, -1)
+
 
 if __name__ == '__main__':
     if not BOOTSTRAP:
