@@ -25,7 +25,7 @@ def broadcast(endpoint, attempts = 5):
         if node['id'] == my_id['id']:
             continue
         retry_attempts = 0
-        while retry_attempts < 5:
+        while retry_attempts < attempts:
             req = requests.post(f"http://{node['ip']}:{node['port']}/{endpoint}", json=trans.to_json())
             if req.ok:
                 responses.append(req)
@@ -196,7 +196,9 @@ def validate_chain():
 
 
 def resolve_conflict():
-    broadcast("get-chain")
+    responses = broadcast("get-chain")
+    
+    # find the maximal blockchain and keep it
 
 
 def send_nodes_to_all(nodes):
@@ -273,7 +275,7 @@ def get_block():
 
 
 @app.route("/get-chain", methods=['POST'])
-def get_block():
+def get_chain():
     # TODO
     pass
 
