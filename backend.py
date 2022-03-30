@@ -19,6 +19,21 @@ def generate_wallet():
     return pubkey, privkey
 
 
+def broadcast(endpoint, attempts = 5):
+    for node in nodes:
+        if node['id'] == my_id['id']:
+            continue
+        retry_attempts = 0
+        while retry_attempts < 5:
+            req = requests.post(f"http://{node['ip']}:{node['port']}/{endpoint}", json=trans.to_json())
+            if req.ok:
+                break
+            else:
+                print(f"Failed to broadcast to {endpoint} of node {node['ip']}. Retrying...")
+                sleep(2 ** retry_attempts)
+                retry_attempts += 1
+
+
 def create_transaction(receiver_address, amount):
     pos = int(my_id['id'])
     unspent = utxo[pos]
@@ -59,18 +74,7 @@ def sign_transaction(trans, privkey):
 
 
 def broadcast_transaction(trans):
-    for node in nodes:
-        if node['id'] == my_id['id']:
-            continue
-        retry_attempts = 0
-        while retry_attempts < 5:
-            req = requests.post(f"http://{node['ip']}:{node['port']}/get-transaction", json=trans.to_json())
-            if req.ok:
-                break
-            else:
-                print('Transaction failed to be sent. Retrying...')
-                sleep(2 ** retry_attempts)
-                retry_attempts += 1
+    broadcast("get-transaction")
 
 
 def verify_signature(trans, pubkey, signature):
@@ -163,19 +167,7 @@ def mine_block():
 
 
 def broadcast_block(block):
-    # TODO: create function: broadcast(attemps = 5, endpoint='get-block')
-    for node in nodes:
-        if node['id'] == my_id['id']:
-            continue
-        retry_attempts = 0
-        while retry_attempts < 5:
-            req = requests.post(f"http://{node['ip']}:{node['port']}/get-block", json=trans.to_json())
-            if req.ok:
-                break
-            else:
-                print('Block failed to be broadcasted. Retrying...')
-                sleep(2 ** retry_attempts)
-                retry_attempts += 1
+    broadcast("get-block")
 
 
 def validate_block(block, verbose=True):
@@ -201,7 +193,7 @@ def validate_chain():
 
 
 def resolve_conflict():
-    pass
+    broadcast("get-chain")
 
 
 def send_nodes_to_all(nodes):
