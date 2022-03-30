@@ -45,7 +45,7 @@ def create_transaction(receiver_address, amount):
         # Send the mofo to everyone in the bitconnetwork
         broadcast_transaction(trans)
         # Add the mofo to the queue
-        trans_queue.appendleft(trans)
+        trans_queue.append(trans)
         if len(trans_queue) >= C:
             mine_block()
     else:
@@ -187,7 +187,7 @@ def find_index_by(id=None, public_key=None):
                 return i
     elif public_key:
         for node in nodes:
-            if public_key.e == node['e'] and public_key.n == node['n']:
+            if str(public_key.e) == node['e'] and str(public_key.n) == node['n']:
                 return int(node['id'])
 
 
@@ -275,21 +275,4 @@ if BOOTSTRAP:
     blockchain.append(genesis_block)
 
 if __name__ == '__main__':
-    if not BOOTSTRAP:
-        # Node makes join request and joins the network
-        # If it fails it retries in 5 seconds until the 
-        # bootstrap server is up and running
-        while True:
-            try:
-                x = requests.post('http://192.168.0.1:5000/join-network', json=json.dumps(my_id)).json()
-                my_id['id'] = x['cni']
-                break
-            except requests.exceptions.ConnectionError:
-                print('Server unreachable retrying in 5s...')
-                sleep(5)
-                continue
-    else:
-        # The bootstrap server starts a thread which waits for all nodes to 
-        # connect and then sends each server's credentials to all of them
-        Timer(5, send_nodes_to_all, [nodes]).start()
-    app.run(host=my_ip, port=my_id['port'], debug=False)
+    create_transaction(pubkey, 50)

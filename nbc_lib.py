@@ -16,14 +16,10 @@ class Block:
     def from_json(cls, json_str):
         x = json.loads(json_str)
         return cls(x['index'], x['timestamp'], x['transactions'], x['nonce'], x['previous_hash'])
-        #return cls(x.index, x.timestamp, x.transactions, x.nonce, x.previous_hash)
 
     @classmethod
     def from_dict(cls, x):
         return cls(x['index'], x['timestamp'], x['transactions'], x['nonce'], x['previous_hash'])
-
-    def __hash__(self):
-        return SHA256.new(bytearray(str([self.timestamp, self.transactions, self.nonce]), 'utf-8'))
 
     def to_dict(self):
         return {'index': self.index,
@@ -38,28 +34,24 @@ class Block:
 
 
 class Transaction:
-    def __init__(self, sender_address, receiver_address, amount, t_inputs=None, t_outputs=None, signature=None):
+    def __init__(self, sender_address, receiver_address, amount, t_inputs, t_outputs=None, signature=None):
         self.sender_address = sender_address
         self.receiver_address = receiver_address
         self.amount = amount
         self.t_id = SHA256.new(bytearray(
             str([self.sender_address, self.receiver_address, self.amount]), 'utf-8'))
         self.t_inputs = t_inputs
-        self.t_outputs = t_outputs
-        self.signature = signature
+        self.t_outputs = None
+        self.signature = None
 
     @classmethod
     def from_json(cls, json_str):
         x = json.loads(json_str)
         return cls(x['sender_address'], x['receiver_address'], x['amount'], x['t_inputs'], x['t_outputs'], x['signature'])
-        #return cls(x.sender_address, x.receiver_address, x.amount, x.t_inputs, x.t_outputs, x.signature)
 
     @classmethod
     def from_dict(cls, x):
         return cls(x['sender_address'], x['receiver_address'], x['amount'], x['t_inputs'], x['t_outputs'], x['signature'])
-
-    def __hash__(self):
-        return SHA256.new(bytearray(str([self.sender_address, self.receiver_address, self.amount]), 'utf-8'))
 
     def to_dict(self):
         return {'sender_address': self.sender_address,
@@ -72,3 +64,10 @@ class Transaction:
 
     def to_json(self):
         return json.dumps(self.to_dict())
+
+    #TODO change both of them so as to not have object references when calling str and repr (??)
+    def __repr__(self):
+        return str(self.to_dict())
+
+    def __str__(self):
+        return str(self.to_dict())
