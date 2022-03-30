@@ -58,7 +58,6 @@ def sign_transaction(trans, privkey):
     return signature
 
 
-
 def broadcast_transaction(trans):
     for node in nodes:
         if node['id'] == my_id['id']:
@@ -105,7 +104,7 @@ def validate_transaction(trans, pubkey, signature):
         tmp = []
         # List with all IDs from unspent
         unspent_ids = [item['id'] for item in unspent]
-        # For every input we want to valid
+        # For every input we want to validate
         for i, inp in enumerate(trans.t_inputs):
             input_id = inp['id']
             # Check to see if it is in unspent_ids
@@ -161,6 +160,48 @@ def mine_block():
             print(temp.current_hash.hexdigest())
             print('Suitable hash found!')
             return temp
+
+
+def broadcast_block(block):
+    # TODO: create function: broadcast(attemps = 5, endpoint='get-block')
+    for node in nodes:
+        if node['id'] == my_id['id']:
+            continue
+        retry_attempts = 0
+        while retry_attempts < 5:
+            req = requests.post(f"http://{node['ip']}:{node['port']}/get-block", json=trans.to_json())
+            if req.ok:
+                break
+            else:
+                print('Block failed to be broadcasted. Retrying...')
+                sleep(2 ** retry_attempts)
+                retry_attempts += 1
+
+
+def validate_block(block, verbose=True):
+    current_hash = block.current_hash
+    cor_previous_hash = blockchain[-1].current_hash
+    
+    if block.previous_hash == cor_previous_hash:
+        if verbose: print(f"Previous hash validated for block {block.index}")
+        curr_block_hash = SHA256.new(
+            bytearray(str([block.timestamp, block.transactions, block.nonce]), 'utf-8'))
+        if block.current_hash == curr_block_hash:
+            if verbose: print(f"Current hash validated for block {block.index}")
+            return True
+        return False
+
+
+def validate_chain():
+    chain = blockchain[1:]
+    for block in chain:
+        if not validate_block(block, verbose=False):
+            print("Chain could not be validated!")
+            resolve_conflict()
+
+
+def resolve_conflict():
+    pass
 
 
 def send_nodes_to_all(nodes):
@@ -229,6 +270,17 @@ def get_transaction():
             print("Invalid transaction")
     return 'OK'
 
+
+@app.route("/get-block", methods=['POST'])
+def get_block():
+    # TODO
+    pass
+
+
+@app.route("/get-chain", methods=['POST'])
+def get_block():
+    # TODO
+    pass
 
 # Finding our local IP address by pinging the 0th node/gateway on port 80
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
