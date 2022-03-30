@@ -62,14 +62,15 @@ def broadcast_transaction(trans):
     for node in nodes:
         if node['id'] == my_id['id']:
             continue
-        while True:
-            #TODO Make it so it retries 5-10-15 times
+        retry_attempts = 0
+        while retry_attempts < 5:
             req = requests.post(f"http://{node['ip']}:{node['port']}/get-transaction", json=trans.to_json())
             if req.ok:
                 break
             else:
-                print('Transaction failed to be sent retrying...')
-                sleep(5)
+                print('Transaction failed to be sent. Retrying...')
+                sleep(2 ** retry_attempts)
+                retry_attempts += 1
 
 
 def verify_signature(trans, pubkey, signature):
