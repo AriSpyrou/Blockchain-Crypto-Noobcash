@@ -20,6 +20,7 @@ def generate_wallet():
 
 
 def broadcast(endpoint, attempts = 5):
+    responses = []
     for node in nodes:
         if node['id'] == my_id['id']:
             continue
@@ -27,11 +28,13 @@ def broadcast(endpoint, attempts = 5):
         while retry_attempts < 5:
             req = requests.post(f"http://{node['ip']}:{node['port']}/{endpoint}", json=trans.to_json())
             if req.ok:
+                responses.append(req)
                 break
             else:
                 print(f"Failed to broadcast to {endpoint} of node {node['ip']}. Retrying...")
                 sleep(2 ** retry_attempts)
                 retry_attempts += 1
+        return responses
 
 
 def create_transaction(receiver_address, amount):
