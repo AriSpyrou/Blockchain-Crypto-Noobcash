@@ -1,5 +1,5 @@
-import os 
 import re
+import requests
 
 help = '''
 ************************************* HELP PAGE *************************************
@@ -15,13 +15,15 @@ Commands:
 while True:
     cmd = input("Noobcash client > ")
 
-    pattern = re.compile("t\sid(\d)\s(\d+)")
+    pattern = re.compile("t\s(id\d)\s(\d+)")
     match = pattern.match(cmd)
 
     if match:
         recipient = match.group(1)
         amount = match.group(2)
-        # create_transaction(recipient, amount)
+        print(recipient, amount)
+        r = requests.post(url = "http://192.168.0.1:5000/new-transaction", json =  {"receiver_address": recipient, "amount": amount})
+        print(r.status_code)
 
     if cmd == "view":
         pass
@@ -33,6 +35,11 @@ while True:
 
     if cmd == "help":
         print(help)
+
+    if cmd == "poutses":
+        r = requests.get(url = "http://192.168.0.1:5000/get-chain")
+        print(r.json())
+
 
 if __name__ == "__main__":
     main()
